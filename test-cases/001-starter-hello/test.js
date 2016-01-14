@@ -4,16 +4,13 @@ const helper = require("../helper");
 const request = require('supertest');
 const assert = helper.assert;
 
-var API_URL;
 var api;
 
 var testCount = 0;
 
 module.exports = {
     before: function () {
-        API_URL = helper.assertEnv("API_URL");
-        api = request(API_URL);
-        this.totalTests = testCount;
+        api = request(helper.assertEnv("API_URL_0"));
     },
 
     [`TEST ${++testCount}`]: function* () {
