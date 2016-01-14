@@ -1,0 +1,32 @@
+{
+  "name": "restcoder-tester",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@gitlab.com/restcoder/restcoder-tester.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/restcoder/restcoder-tester/issues"
+  },
+  "homepage": "https://gitlab.com/restcoder/restcoder-tester#README",
+  "dependencies": {
+    "bluebird": "^3.1.1",
+    "chai": "^3.4.1",
+    "co": "^4.6.0",
+    "co-mocha": "^1.1.2",
+    "config": "^1.19.0",
+    "mocha": "^2.3.4",
+    "mz": "^2.1.0",
+    "superagent": "^1.6.1",
+    "superagent-promise": "^1.1.0",
+    "supertest": "^1.1.0",
+    "underscore": "^1.8.3"
+  }
+}
