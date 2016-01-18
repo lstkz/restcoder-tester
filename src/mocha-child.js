@@ -4,11 +4,6 @@ const winston = require('winston');
 const Mocha = require('mocha');
 const _ = require('underscore');
 
-//var EventEmitter = require('events').EventEmitter;
-//var emitter = new EventEmitter();
-//
-//testRunner.setEmitter(emitter);
-
 process.on('message', function (msg) {
     console.log(msg);
     _.extend(process.env, msg.testEnv);
@@ -16,25 +11,28 @@ process.on('message', function (msg) {
     var mocha = new Mocha();
     mocha.ui('exports');
     mocha.timeout(5000);
+    mocha.bail(true);
     msg.files.forEach(f => mocha.addFile(f));
 
-    var testResult = {};
+    var testResult = {
+        passed: true
+    };
     var totalTests;
 
     mocha.reporter(function (runner) {
 
         runner.on('start', function() {
             totalTests = runner.total;
-            process.send({type: "start", totalTests: totalTests});
+            process.send({type: "START", totalTests: totalTests});
         });
 
         runner.on('test', function(test) {
             testResult[test.title] = {
                 startedAt: new Date(),
                 name: test.title,
-                result: "UNKNOWN",
-                log: {}
+                result: "UNKNOWN"
             };
+            process.send({type: "TEST_RESULT", data: {name: test.title, result: "PENDING"}});
         });
 
         runner.on('fail', function(test, err){
@@ -56,6 +54,10 @@ process.on('message', function (msg) {
                     stack: err.stack
                 };
             }
+            testResult.passed = false;
+            testResult[test.title] = result;
+
+            process.send({type: "TEST_RESULT", data: {name: test.title, result: "FAIL", userErrorMessage: result.userErrorMessage}});
         });
 
         runner.on('pass', function(test){
@@ -64,11 +66,12 @@ process.on('message', function (msg) {
                 name: test.title,
                 result: "PASS"
             };
+            process.send({type: "TEST_RESULT", data: {name: test.title, result: "PASS"}});
         });
     });
 
     mocha.run(function () {
-        process.send({type: "end", result: testResult});
+        process.send({type: "END", result: testResult});
         process.exit(0);
     });
 });

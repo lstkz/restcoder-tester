@@ -4,13 +4,25 @@ const exec = require("mz/child_process").exec;
 const execCb = require('child_process').exec;
 const fork = require('child_process').fork;
 const _ = require("underscore");
+const ms = require("ms");
+const co = require("co");
 const config = require("config");
 const bash = require("bash");
 const Path = require("path");
+const helper = require("../common/helper");
+const OperationError = require("../common/errors").OperationError;
+const validate = require("../common/validator").validate;
+const APIService = require("./APIService");
+const LoggerService = require("./LoggerService");
 
 const IDLE_CMD = '/bin/bash -c "while true; do sleep 1; done"';
+const MAX_SIZE = 1024 * 1024;
 
-var currentPort = 0;
+const EXEC_OPTS_10s = {timeout: ms("10s")};
+const EXEC_OPTS_1m = {timeout: ms("1m")};
+const EXEC_OPTS_3m = {timeout: ms("3m")};
+
+var currentPort = _.random(0, 1000);
 
 module.exports = {
     testSubmission
@@ -32,76 +44,162 @@ function _getFreePort() {
     return currentPort + 50000;
 }
 
-
-function* testSubmission(submissionUrl, problemId) {
-    
-    var submission = {
-        id: 1234,
-        dockerImage: "docker.restcoder.com/lang_nodejs:4.2.4",
-        sourceUrl: "http://192.168.0.21:3400/001-starter-hello-nodejs.zip",
-        commands: {
-            web: "node app"
-        }
-    };
-    
-    var services = [
+/**
+ * Step 1. Validate input and generate name
+ * @param data
+ * @param submissionLogger
+ * @private
+ */
+function* _prepareStep(data, submissionLogger) {
+    validate(data,
         {
-            name: "mongodb",
-            dockerImage: "docker.restcoder.com/service_mongodb",
-            url: "mongodb://{{ip}}:27017/mydb",
-            envName: "MONGODB_URL",
-            link: ["web"]
-        }
-    ];
-    
-    var problem = {
-        id: 1,
-        testSpec: {
-            testCase: "001-starter-hello",
-            processes: {
-                web: {
-                    instances: 1
-                }
+            "submissionId": "ObjectId",
+            "notifyKey": "ShortString",
+            "dockerImage": "ShortString",
+            "sourceUrl": "ShortString",
+            "commands": "AnyObject",
+            "testCase": "ShortString",
+            "processes": "AnyObject",
+            "services": {
+                type: ["AnyObject"],
+                empty: true
             }
-        }
+        });
+    submissionLogger.info("Validation pass");
+
+    yield APIService.notifyProgress(data.notifyKey, {type: "PREPARING"});
+
+    return `${data.submissionId}_${helper.randomString(5)}`.toLowerCase();
+}
+
+/**
+ * Step 2. Create a container that contains installed dependencies
+ * @param data
+ * @param cleanUpSteps
+ * @param submissionLogger
+ * @param dockerName
+ * @returns {String} the docker image name
+ * @private
+ */
+function* _initializeContainerStep(data, cleanUpSteps, submissionLogger, dockerName) {
+    var steps = {
+        ALL: "initializeContainer",
+        CREATE_BASE_DOCKER_IMAGE: "initializeContainer | create base docker image",
+        DOWNLOAD_SOURCE_CODE: "initializeContainer | download source code",
+        INSTALL: "initializeContainer | install dependencies",
+        COMMIT: "initializeContainer | commit container",
+        REMOVE: "initializeContainer | remove container"
     };
-    var testEnv = {};
-    var dockerName = submission.id +"_xyz";
-    
+
+    submissionLogger.profile(steps.ALL);
+
+    //Step 1 - Create docker image
     //run empty container as daemon
     //will be automatically removed on exit
     var containerName = "setup-" + dockerName;
-    yield exec(`docker run -d --name ${containerName} ${submission.dockerImage} ${IDLE_CMD}`);
+    submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
+    yield exec(`docker run -d --name ${containerName} ${data.dockerImage} ${IDLE_CMD}`, EXEC_OPTS_10s);
+    submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
+    cleanUpSteps.push({
+        type: "REMOVE_CONTAINER",
+        data: containerName
+    });
+
+    //Step 2 - Download source code
     var zipName = "app.zip";
-    
-    //download source code
-    yield exec(`docker exec ${containerName} /bin/bash -c "curl -o ${zipName} ${submission.sourceUrl} && unzip ${zipName}"`);
+    submissionLogger.profile(steps.DOWNLOAD_SOURCE_CODE);
+    yield exec(`docker exec ${containerName} /bin/bash -c "curl -o ${zipName} ${data.sourceUrl} && unzip ${zipName}"`, EXEC_OPTS_1m);
+    submissionLogger.profile(steps.DOWNLOAD_SOURCE_CODE);
+
+    //Step 3 - Install dependencies
     var installCmd = "npm install";
-    //install dependencies
-    var installLog = yield exec(`docker exec ${containerName} /bin/bash -c "${installCmd}"`);
-    //create new image based on current container
-    var imageName = "app_image-1234";
-    yield exec(`docker commit ${containerName} ${imageName}`);
-    //remove container, we don't need it anymore
-    yield exec(`docker stop -t=0 ${containerName} && docker rm ${containerName}`);
+    yield APIService.notifyProgress(data.notifyKey, {type: "INSTALL"});
+    submissionLogger.profile(steps.INSTALL);
+    var installResult = yield _execCommand(`docker exec ${containerName} /bin/bash -c "${installCmd}"`, "Install Dependencies",  ms("3m"));
+    submissionLogger.profile(steps.INSTALL);
+    submissionLogger.info("initializeContainer | install dependencies result %j", installResult, {});
+
+    //Step 4 - Commit container (create new image with installed dependencies)
+    yield APIService.notifyProgress(data.notifyKey, {type: "INSTALL_OK"});
+    yield APIService.notifyProgress(data.notifyKey, {type: "INSTALL_LOG", msg: "installLog"});
+    var imageName = `app_${dockerName}`;
+    submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
+    yield exec(`docker commit ${containerName} ${imageName}`, EXEC_OPTS_1m);
+    submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
+
+    //Step 5 - Remove original container container, we don't need it anymore
+    submissionLogger.profile(steps.REMOVE);
+    yield exec(`docker rm -f ${containerName}`, EXEC_OPTS_10s);
+    submissionLogger.profile(steps.REMOVE);
+
+    //remove, because the container it's already removed
+    cleanUpSteps.pop();
+
+    submissionLogger.profile(steps.ALL);
+
+    return imageName;
+}
+
+function* testSubmission(data) {
+    var cleanUp = [];
+    var testEnv = {};
+
+    var submissionLogger = LoggerService.createWinstonLogger(10 * MAX_SIZE);
+    submissionLogger.profile("testSubmission");
+    
+    //step 1
+    var dockerName = yield _prepareStep(data, submissionLogger);
+
+    //step 2
+    var imageName = yield _initializeContainerStep(data, cleanUp, submissionLogger, dockerName);
+
+    ////run empty container as daemon
+    ////will be automatically removed on exit
+    //var containerName = "setup-" + dockerName;
+    //yield exec(`docker run -d --name ${containerName} ${data.dockerImage} ${IDLE_CMD}`);
+    //cleanUp.push({
+    //    type: "container",
+    //    data: containerName
+    //});
+    //logSteps.push({
+    //    name: "Initialize container"
+    //});
+    //var zipName = "app.zip";
+    //
+    ////download source code
+    //yield exec(`docker exec ${containerName} /bin/bash -c "curl -o ${zipName} ${data.sourceUrl} && unzip ${zipName}"`);
+    //var installCmd = "npm install";
+    ////install dependencies
+    //yield APIService.notifyProgress(data.notifyKey, {type: "INSTALL"});
+    //
+    //var installResult = yield _execCommand(`docker exec ${containerName} /bin/bash -c "${installCmd}"`, "Install Dependencies", ms('3m'));
+    //logSteps.push(installResult);
+    //
+    //yield APIService.notifyProgress(data.notifyKey, {type: "INSTALL_OK"});
+    //yield APIService.notifyProgress(data.notifyKey, {type: "INSTALL_LOG", msg: "installLog"});
+    ////create new image based on current container
+    //var imageName = `app_${dockerName}`;
+    //yield exec(`docker commit ${containerName} ${imageName}`);
+    ////remove container, we don't need it anymore
+    //yield exec(`docker stop -t=0 ${containerName} && docker rm ${containerName}`);
 
     //start services
-    yield services.map(service => function* () {
+    yield data.services.map(service => function* () {
         var serviceName = `service-${dockerName}`;
         yield exec(`docker run -d --name ${serviceName} ${service.dockerImage}`);
         var ip = yield _getContainerIP(serviceName);
         service.url = service.url.replace("{{ip}}", ip);
         service.ip = ip;
-    }); 
-    
+    });
+
     //start user's containers (empty command)
-    var containers = yield _.map(problem.testSpec.processes, function (conf, procName) {
-        let cmd = submission.commands[procName];
+    var containers = yield _.map(data.processes, function (conf, procName) {
+        let cmd = data.commands[procName];
         if (!cmd) {
             throw new Error(`Command ${procName} is missing in Procfile`);
         }
-        
-        return  _.map(_.range(0, conf.instances), n => function* () {
+
+        return _.map(_.range(0, conf.instances), n => function* () {
             var name = `app-${dockerName}-${procName}-${n}`;
             var hostPort = _getFreePort();
             var containerPort = config.APP_DEFAULTS.HTTP_PORT;
@@ -124,16 +222,16 @@ function* testSubmission(submissionUrl, problemId) {
         });
     });
     containers = _.flatten(containers);
-    
+
     //disable internet connection
     containers.forEach(container => {
         var cmd = ` iptables -I FORWARD -s ${container.ip} -j REJECT`;
         console.log(cmd); //TODO
     });
-    
+
     //link container and services
     var containerIndex = _.groupBy(containers, "procName");
-    services.forEach(service => {
+    data.services.forEach(service => {
         service.link.forEach(procName => {
             var containers = containerIndex[procName];
             if (!containers) {
@@ -146,13 +244,109 @@ function* testSubmission(submissionUrl, problemId) {
             });
         });
     });
-    
-    
-    
+
+
+    yield APIService.notifyProgress(data.notifyKey, {type: "READY"});
+
+
     //start containers (real command)
-    yield containers.map(container => new Promise((resolve, reject) => {
-        var cmd = "";
+    yield containers.map(container => _startContainer(container, data.notifyKey));
+
+    yield APIService.notifyProgress(data.notifyKey, {type: "READY_OK"});
+
+    //start unit tests
+    yield APIService.notifyProgress(data.notifyKey, {type: "BEFORE_START"});
+
+    var child = fork(__dirname + '/../mocha-child.js');
+    var files = [
+        Path.join(__dirname, "../../test-cases/", data.testCase, "test.js")
+    ];
+    child.send({files: files, testEnv: testEnv});
+
+    var testResult = yield new Promise(function (resolve, reject) {
+        child.on('message', function (msg) {
+            co(function* () {
+                switch (msg.type) {
+                    case "START":
+                    case "TEST_RESULT":
+                        yield APIService.notifyProgress(data.notifyKey, msg);
+                        break;
+                    case "END":
+                        yield APIService.notifyProgress(data.notifyKey, {type: "END", passed: msg.result.passed});
+                        resolve(msg);
+                }
+            }).catch(reject);
+        });
+    });
+    console.log(testResult);
+    console.log(yield submissionLogger.s3Upload());
+    console.log('ok');
+}
+
+function _execCommand(command, name, timeout) {
+    var proc = execCb(command);
+    return new Promise((resolve, reject) => {
+        var isHandled = false;
+        var stdoutLogger = LoggerService.createLogger(MAX_SIZE);
+        var stderrLog = LoggerService.createLogger(MAX_SIZE);
+        proc.stdout.on('data', data => {
+            stdoutLogger.log(data);
+        });
+        proc.stderr.on('data', data => {
+            stderrLog.log(data);
+        });
+        proc.on('error', e => {
+            clearTimeout(interval);
+            var err = new OperationError(`Process "${name}" returned an error: ${e.message}`);
+            complete(err);
+        });
+
+        proc.on('exit', (code) => {
+            clearTimeout(interval);
+            if (!code) {
+                complete();
+            } else {
+                complete(new OperationError("Non zero exit code: " + code));
+            }
+        });
+
+        var interval = setTimeout(function () {
+            proc.kill();
+            complete(new OperationError(`Process "${name}" timeout.`));
+        }, timeout);
         
+        function complete(err) {
+            if (isHandled) {
+                return;
+            }
+            isHandled = true;
+            co(function* () {
+                return yield [stdoutLogger.s3Upload(), stderrLog.s3Upload()];
+            }).then(logs => {
+                var ret = {command, name};
+                if (logs[0]) {
+                    ret.stdout = logs[0];
+                }
+                if (logs[0]) {
+                    ret.stderr = logs[1];
+                }
+                if (err) {
+                    err.info = ret;
+                    reject(err);
+                } else {
+                    resolve(ret);
+                }
+            }).catch(reject);
+        }
+    });
+}
+
+function _startContainer(container, notifyKey) {
+    return new Promise((resolve, reject) => {
+        var stdoutLogger = LoggerService.createLogger(MAX_SIZE);
+        var stderrLog = LoggerService.createLogger(MAX_SIZE);
+        var cmd = "";
+
         _.each(container.envVariables, (value, key) => {
             cmd += `export ${key}=${value}; `;
         });
@@ -161,44 +355,29 @@ function* testSubmission(submissionUrl, problemId) {
         console.log(cmd);
         var proc = execCb(`docker exec ${container.containerName} ${cmd}`);
         var interval = setTimeout(function () {
-            reject(new Error(`Process "${container.procName}" timeout.`));
+            co(APIService.notifyProgress(notifyKey, {type: "READY_TIMEOUT"}));
+            co(function* () {
+                return yield [stdoutLogger.s3Upload(), stderrLog.s3Upload()];
+            }).then(logs => {
+                console.log(logs);
+                reject(new Error(`Process "${container.procName}" timeout.`));
+            }).catch(reject);
         }, 3000);
         proc.stdout.on('data', data => {
+            stdoutLogger.log(data);
             if (data.toString().trim() === "READY") {
                 clearTimeout(interval);
                 resolve();
             }
         });
-        //proc.stderr.on('data', data => {
-        //    console.log(data.toString());
-        //});
+        proc.stderr.on('data', data => {
+            stderrLog.log(data);
+        });
         proc.on('error', e => {
             clearTimeout(interval);
             var err = new Error(`Couldn't start the process "${container.procName}"`);
             err.orgError = e;
             reject(err);
         });
-    }));
-    
-    //start unit tests
-
-
-    var child = fork(__dirname + '/../mocha-child.js');
-    var files = [
-        Path.join(__dirname, "../../test-cases/", problem.testSpec.testCase, "test.js")
-    ];
-    child.send({ files: files, testEnv: testEnv });
-    
-    var testResult = yield new Promise(function (resolve, reject) {
-        child.on('message', function (msg) {
-            if (msg.type === "progress") {
-                //TODO
-            }
-            if (msg.type === "end") {
-                resolve(msg);
-            }
-        });
     });
-    console.log(testResult);
-    console.log('ok');
 }
