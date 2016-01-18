@@ -14,6 +14,7 @@ module.exports = {
     },
 
     [`TEST ${++testCount}`]: function* () {
+        this.timeout(1000);
         this.action = "GET /hello";
         this.operation = 0;
         this.assert = 0;

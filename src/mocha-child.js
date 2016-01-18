@@ -36,6 +36,7 @@ process.on('message', function (msg) {
         });
 
         runner.on('fail', function(test, err){
+            var ctx = runner.currentRunnable.ctx;
             var result = {
                 finishedAt: new Date(),
                 name: test.title,
@@ -48,7 +49,13 @@ process.on('message', function (msg) {
                     stack: err.orgError.stack
                 };
             } else {
-                result.userErrorMessage = "Internal server error";
+                var reg = /timeout of .*? exceeded./;
+                var match = reg.exec(err.message);
+                if (match) {
+                    result.userErrorMessage = `Operation ${ctx.operation}: ${match[0]}`;
+                } else {
+                    result.userErrorMessage = "Internal server error";
+                }
                 result.errorInfo = {
                     message: err.message,
                     stack: err.stack

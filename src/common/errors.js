@@ -34,5 +34,5 @@ module.exports = {
     NotFoundError: _createError("NotFoundError", 404),
     ForbiddenError: _createError("ForbiddenError", 403),
     UnauthorizedError: _createError("UnauthorizedError", 401),
-    OperationError: _createError("InstallError")
+    OperationError: _createError("OperationError")
 };

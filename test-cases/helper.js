@@ -47,6 +47,16 @@ _.extend(customAssert, {
             throw error;
         }
     },
+    deepEqual: function (actual, expected, operationNr, assertNr) {
+        try {
+            assert.deepEqual(actual, expected);
+        } catch (e) {
+            var error = new Error(`Assert ${assertNr} failed in operation ${operationNr}`);
+            error.userError = true;
+            error.orgError = e;
+            throw error;
+        }
+    },
     response: function (res, operation) {
         if (!res) {
             var error = new Error(`Connection refused in operation ${operation}`);
