@@ -18,7 +18,7 @@ module.exports = {
         api = request(helper.assertEnv("API_URL_0"));
         client = new pg.Client(helper.assertEnv("POSTGRES_URL"));
         yield client.connect.bind(client);
-        yield client.query.bind(client, fs.readFileSync(__dirname + "/data/init.sql"));
+        yield client.query.bind(client, fs.readFileSync(__dirname + "/data/init.sql", 'utf8'));
         expected = require("./data/expected.json");
     },
 

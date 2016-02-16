@@ -10,6 +10,7 @@ const config = require("config");
 const bash = require("bash");
 const Path = require("path");
 const helper = require("../common/helper");
+const logger = require("../common/logger");
 const OperationError = require("../common/errors").OperationError;
 const validate = require("../common/validator").validate;
 const APIService = require("./APIService");
@@ -218,7 +219,7 @@ function* _initializeContainerStep(data, cleanUpSteps, submissionLogger, namePre
  * @param namePrefix
  * @private
  */
-function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix) {
+function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, testEnv) {
     var steps = {
         ALL: "startServices",
         START: "startServices | start: "
@@ -227,14 +228,19 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix) {
     yield data.services.map(service => function* () {
         var serviceName = `service-${namePrefix}-${helper.randomString(5)}`.toLowerCase();
         submissionLogger.profile(steps.START + serviceName);
-        yield exec(`docker run -d --name ${serviceName} ${service.dockerImage}`, EXEC_OPTS_10s);
+
+        var hostPort = _getFreePort();
+        var ports = `-p ${hostPort}:${service.port}`;
+
+        yield exec(`docker run -d ${ports} --name ${serviceName} ${service.dockerImage}`, EXEC_OPTS_10s);
         submissionLogger.profile(steps.START + serviceName);
         cleanUpSteps.push({
             type: "REMOVE_CONTAINER",
             data: serviceName
         });
         var ip = yield _getContainerIP(serviceName);
-        service.url = service.url.replace("{{ip}}", ip);
+        testEnv[service.envName] = service.url.replace("{{ip}}", config.HOST_IP).replace("{{port}}", hostPort);
+        service.url = service.url.replace("{{ip}}", ip).replace("{{port}}", service.port);
         service.ip = ip;
     });
     submissionLogger.profile(steps.ALL);
@@ -540,9 +546,9 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
                 submissionLogger.profile(steps.IPTABLES + cmd);
                 return;
             case "REMOVE_CONTAINER":
-                submissionLogger.profile(steps.IPTABLES + step.data);
+                submissionLogger.profile(steps.REMOVE_CONTAINER + step.data);
                 yield exec(`docker rm -f ${step.data}`, EXEC_OPTS_10s);
-                submissionLogger.profile(steps.IPTABLES + step.data);
+                submissionLogger.profile(steps.REMOVE_CONTAINER + step.data);
                 return;
             default:
                 throw new Error("Unknown clean up type: " + step.type);
@@ -560,6 +566,7 @@ function* testSubmission(data) {
     var testEnv = {};
 
     var submissionLogger = LoggerService.createWinstonLogger(10 * MAX_SIZE);
+    submissionLogger.info("submission data %j", data, {});
     submissionLogger.profile("testSubmission");
     var unitTestResult, error;
     try {
@@ -571,7 +578,7 @@ function* testSubmission(data) {
 
         //step 3
         //TODO:
-        yield _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix);
+        yield _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, testEnv);
 
         //step 4
         var containers = yield _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, namePrefix, imageName, testEnv);
@@ -618,7 +625,7 @@ function* testSubmission(data) {
         result = unitTestResult.passed ? "PASS": "FAIL";
     }
     try {
-        yield _cleanUp(cleanUpSteps, submissionLogger);
+       yield _cleanUp(cleanUpSteps, submissionLogger);
     } catch (e) {
         submissionLogger.logFullError(e, "_cleanUp");
     }
@@ -630,5 +637,6 @@ function* testSubmission(data) {
         testLogUrl: yield submissionLogger.s3Upload(),
         unitTestResult: unitTestResult || {}
     };
+    logger.info("submissionResult", testResult);
     yield APIService.submitTestResult(data.notifyKey, testResult);
 }
