@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "nodemon src/app.js",
     "lint": "eslint -c .eslintrc src config || true",
     "lint:fix": "eslint -c .eslintrc src config --fix || true"
   },
@@ -43,6 +44,7 @@
   "devDependencies": {
     "eslint": "^2.8.0",
     "eslint-config-airbnb-base": "^1.0.1",
-    "eslint-plugin-import": "^1.5.0"
+    "eslint-plugin-import": "^1.5.0",
+    "nodemon": "^1.9.2"
   }
 }
