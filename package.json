@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "eslint -c .eslintrc src config || true",
+    "lint:fix": "eslint -c .eslintrc src config --fix || true"
   },
   "repository": {
     "type": "git",
@@ -38,5 +39,10 @@
     "tmp": "*",
     "underscore": "^1.8.3",
     "winston": "^2.1.1"
+  },
+  "devDependencies": {
+    "eslint": "^2.8.0",
+    "eslint-config-airbnb-base": "^1.0.1",
+    "eslint-plugin-import": "^1.5.0"
   }
 }
