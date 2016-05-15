@@ -342,13 +342,13 @@ function* _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, c
   };
   submissionLogger.profile(steps.ALL);
   yield containers.map(container => function* () {
-    var cmd = ` iptables -I FORWARD -s ${container.ip} -j REJECT`;
+    var cmd = ` iptables -w -I FORWARD -s ${container.ip} -j REJECT`;
     submissionLogger.profile(steps.EXEC + cmd);
     yield _setIpTables(cmd);
     submissionLogger.profile(steps.EXEC + cmd);
     cleanUpSteps.push({
       type: 'IPTABLES',
-      data: ` iptables -D FORWARD -s ${container.ip} -j REJECT`
+      data: ` iptables -w -D FORWARD -s ${container.ip} -j REJECT`
     });
   });
   submissionLogger.profile(steps.ALL);
@@ -377,12 +377,12 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
         return;
       }
       containers.forEach(container => {
-        var cmd = ` iptables -I FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`;
+        var cmd = ` iptables -w -I FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`;
         cmds.push(cmd);
         container.envVariables[service.envName] = service.url;
         cleanUpSteps.push({
           type: 'IPTABLES',
-          data: ` iptables -D FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`
+          data: ` iptables -w -D FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`
         });
       });
     });
