@@ -30,6 +30,9 @@ module.exports = {
   testSubmission
 };
 
+function* _setIpTables(cmd) {
+  yield exec(cmd);
+}
 
 function* _getContainerIP(containerId) {
   var result = yield exec(`docker inspect --format='{{.NetworkSettings.IPAddress}}' ${containerId}`);
@@ -332,10 +335,10 @@ function* _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, c
     EXEC: 'disableInternetConnection | exec: '
   };
   submissionLogger.profile(steps.ALL);
-  containers.forEach(container => {
+  yield containers.map(container => function* () {
     var cmd = ` iptables -I FORWARD -s ${container.ip} -j REJECT`;
     submissionLogger.profile(steps.EXEC + cmd);
-        // TODO:
+    yield _setIpTables(cmd);
     submissionLogger.profile(steps.EXEC + cmd);
     cleanUpSteps.push({
       type: 'IPTABLES',
@@ -372,7 +375,7 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
       containers.forEach(container => {
         var cmd = ` iptables -I FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`;
         submissionLogger.profile(steps.EXEC + cmd);
-                // TODO:
+        yield _setIpTables(cmd);
         submissionLogger.profile(steps.EXEC + cmd);
         container.envVariables[service.envName] = service.url;
         cleanUpSteps.push({
@@ -554,7 +557,7 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
           cmd = `iptables -D ${data.type} -s ${data.s} -j REJECT`;
         }
         submissionLogger.profile(steps.IPTABLES + cmd);
-                // TODO:
+        yield _setIpTables(cmd);
         submissionLogger.profile(steps.IPTABLES + cmd);
         return;
       case 'REMOVE_CONTAINER':
