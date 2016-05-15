@@ -362,10 +362,11 @@ function* _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, c
 function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) {
   var steps = {
     ALL: 'linkContainers',
-    START: 'linkContainers | exec: '
+    EXEC: 'linkContainers | exec: '
   };
   submissionLogger.profile(steps.ALL);
   var containerIndex = _.groupBy(containers, 'procName');
+  const cmds = [];
   data.services.forEach(service => {
     service.link.forEach(procName => {
       var containers = containerIndex[procName];
@@ -374,9 +375,7 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
       }
       containers.forEach(container => {
         var cmd = ` iptables -I FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`;
-        submissionLogger.profile(steps.EXEC + cmd);
-        yield _setIpTables(cmd);
-        submissionLogger.profile(steps.EXEC + cmd);
+        cmds.push(cmd);
         container.envVariables[service.envName] = service.url;
         cleanUpSteps.push({
           type: 'IPTABLES',
@@ -388,6 +387,11 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
         });
       });
     });
+  });
+  yield cmds.map((cmd) => {
+    submissionLogger.profile(steps.EXEC + cmd);
+    _setIpTables(cmd);
+    submissionLogger.profile(steps.EXEC + cmd);
   });
   submissionLogger.profile(steps.ALL);
 }
