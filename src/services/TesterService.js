@@ -23,7 +23,8 @@ const EXEC_OPTS_10s = { timeout: ms('10s') };
 const EXEC_OPTS_1m = { timeout: ms('1m') };
 const EXEC_OPTS_3m = { timeout: ms('3m') };
 
-const LIMIT_OPTS = '--cpuset-cpus=0 --memory=256m --cpu-period=50000 --cpu-quota=25000';
+const LIMIT_RUN_OPTS = '--cpuset-cpus=0 --memory=256m --cpu-period=50000 --cpu-quota=25000';
+const LIMIT_INSTALL_OPTS = '--cpuset-cpus=0 --memory=512m --cpu-period=50000 --cpu-quota=25000';
 
 var currentPort = _.random(0, 1000);
 
@@ -183,7 +184,7 @@ function* _initializeContainerStep(data, cleanUpSteps, submissionLogger, namePre
     // will be automatically removed on exit
   var containerName = 'setup-' + namePrefix;
   submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
-  yield exec(`docker run ${LIMIT_OPTS} -d --name ${containerName} ${data.dockerImage} ${IDLE_CMD}`, EXEC_OPTS_10s);
+  yield exec(`docker run ${LIMIT_INSTALL_OPTS} -d --name ${containerName} ${data.dockerImage} ${IDLE_CMD}`, EXEC_OPTS_10s);
   submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
   cleanUpSteps.push({
     type: 'REMOVE_CONTAINER',
@@ -296,7 +297,7 @@ function* _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, nameP
       var containerPort = config.APP_DEFAULTS.HTTP_PORT;
       var ports = `-p ${hostPort}:${containerPort}`;
       submissionLogger.profile(steps.START + name);
-      yield exec(`docker run ${LIMIT_OPTS} -d ${ports} --name ${name} ${imageName} ${IDLE_CMD}`, EXEC_OPTS_10s);
+      yield exec(`docker run ${LIMIT_RUN_OPTS} -d ${ports} --name ${name} ${imageName} ${IDLE_CMD}`, EXEC_OPTS_10s);
       submissionLogger.profile(steps.START + name);
       cleanUpSteps.push({
         type: 'REMOVE_CONTAINER',
