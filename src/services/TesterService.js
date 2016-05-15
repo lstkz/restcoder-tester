@@ -50,6 +50,12 @@ function _getInstallCommand(language) {
   switch (language) {
     case 'nodejs':
       return 'npm install';
+    case 'ruby':
+      return 'bundler install';
+    case 'python':
+      return 'pip install -r requirements.txt';
+    case 'java':
+      return 'mvn install';
   }
   throw new Error('Not supported language: ' + language);
 }

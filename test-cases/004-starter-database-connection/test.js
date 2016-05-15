@@ -23,7 +23,6 @@ module.exports = {
     },
 
     [`TEST ${++testCount}`]: function* () {
-        this.timeout(1000);
         var operation = 0;
         var assert = 0;
 
@@ -36,7 +35,6 @@ module.exports = {
     },
 
     [`TEST ${++testCount}`]: function* () {
-        this.timeout(1000);
         yield _.range(1, 20).map((operation) => function* () {
             var assert = 0;
             let res = yield api

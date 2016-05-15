@@ -5,7 +5,8 @@ module.exports = {
     'TIMEOUT': 3000,
     'HTTP_PORT': 8080
   },
-  'AMQP_URL': 'amqp://guest:guest@localhost:5672',
+//  'AMQP_URL': 'amqp://guest:guest@localhost:5672',
+  'AMQP_URL': 'amqp://jtmqnmyh:PcJcfWz4Q86qd39tayVh7u64ogjoCiAD@tiger.cloudamqp.com/jtmqnmyh',
   'SUBMISSION_QUEUE_NAME': 'submissions',
   'MAX_PARALLEL_TESTS': 1,
   'LOG_LEVEL': 'debug',

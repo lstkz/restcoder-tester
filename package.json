@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon src/app.js",
+    "watch": "nodemon src/app.js",
     "lint": "eslint -c .eslintrc src config || true",
     "lint:fix": "eslint -c .eslintrc src config --fix || true"
   },
