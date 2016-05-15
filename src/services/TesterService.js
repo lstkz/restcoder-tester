@@ -381,9 +381,9 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
       });
     });
   });
-  yield cmds.map((cmd) => {
+  yield cmds.map((cmd) => function* () {
     submissionLogger.profile(steps.EXEC + cmd);
-    _setIpTables(cmd);
+    yield _setIpTables(cmd);
     submissionLogger.profile(steps.EXEC + cmd);
   });
   submissionLogger.profile(steps.ALL);
