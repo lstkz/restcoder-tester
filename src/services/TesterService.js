@@ -31,7 +31,7 @@ module.exports = {
 };
 
 function* _setIpTables(cmd) {
-  yield exec(cmd);
+  yield exec('sudo ' + cmd);
 }
 
 function* _getContainerIP(containerId) {
