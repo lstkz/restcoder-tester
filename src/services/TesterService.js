@@ -342,10 +342,7 @@ function* _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, c
     submissionLogger.profile(steps.EXEC + cmd);
     cleanUpSteps.push({
       type: 'IPTABLES',
-      data: {
-        type: 'FORWARD',
-        s: container.ip
-      }
+      data: ` iptables -D FORWARD -s ${container.ip} -j REJECT`
     });
   });
   submissionLogger.profile(steps.ALL);
@@ -379,11 +376,7 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
         container.envVariables[service.envName] = service.url;
         cleanUpSteps.push({
           type: 'IPTABLES',
-          data: {
-            type: 'FORWARD',
-            s: container.ip,
-            d: service.ip
-          }
+          data: ` iptables -D FORWARD -s ${container.ip} -d ${service.ip} -j ACCEPT`
         });
       });
     });
@@ -553,16 +546,9 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
   yield cleanUpSteps.filter((step) => step.type !== 'REMOVE_IMAGE').map(step => function* () {
     switch (step.type) {
       case 'IPTABLES':
-        var data = step.data;
-        var cmd;
-        if (data.s && data.d) {
-          cmd = `iptables -D ${data.type} -s ${data.s} -d ${data.d} -j REJECT`;
-        } else {
-          cmd = `iptables -D ${data.type} -s ${data.s} -j REJECT`;
-        }
-        submissionLogger.profile(steps.IPTABLES + cmd);
-        yield _setIpTables(cmd);
-        submissionLogger.profile(steps.IPTABLES + cmd);
+        submissionLogger.profile(steps.IPTABLES + step.data);
+        yield _setIpTables(step.data);
+        submissionLogger.profile(steps.IPTABLES + step.data);
         return;
       case 'REMOVE_CONTAINER':
         submissionLogger.profile(steps.REMOVE_CONTAINER + step.data);
@@ -608,12 +594,11 @@ function* testSubmission(data) {
         // step 4
     var containers = yield _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, namePrefix, imageName, testEnv);
 
-        // step 5
-        // TODO:
-    yield _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, containers);
-
         // step 6
     yield _linkContainersStep(data, cleanUpSteps, submissionLogger, containers);
+
+    // step 5
+    yield _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, containers);
 
         // step 7
     yield _startContainersStep(data, submissionLogger, containers);
