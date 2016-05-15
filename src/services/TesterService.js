@@ -24,7 +24,7 @@ const EXEC_OPTS_1m = { timeout: ms('1m') };
 const EXEC_OPTS_3m = { timeout: ms('3m') };
 
 const LIMIT_RUN_OPTS = '--cpuset-cpus=0 --memory=256m --cpu-period=50000 --cpu-quota=25000';
-const LIMIT_INSTALL_OPTS = '--cpuset-cpus=0 --memory=1024m --cpu-period=50000 --cpu-quota=25000';
+const LIMIT_INSTALL_OPTS = '--memory=1024m --cpu-period=50000 --cpu-quota=25000';
 
 var currentPort = _.random(0, 1000);
 
