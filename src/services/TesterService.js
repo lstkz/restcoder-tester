@@ -543,7 +543,7 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
     REMOVE_IMAGE: 'cleanUp | remove image: '
   };
   submissionLogger.profile(steps.all);
-  yield cleanUpSteps.map(step => function* () {
+  yield cleanUpSteps.filter((step) => step.type !== 'REMOVE_IMAGE').map(step => function* () {
     switch (step.type) {
       case 'IPTABLES':
         var data = step.data;
@@ -562,14 +562,15 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
         yield exec(`docker rm -f ${step.data}`, EXEC_OPTS_10s);
         submissionLogger.profile(steps.REMOVE_CONTAINER + step.data);
         return;
-      case 'REMOVE_IMAGE':
-        submissionLogger.profile(steps.REMOVE_IMAGE + step.data);
-        yield exec(`docker rmi -f ${step.data}`, EXEC_OPTS_10s);
-        submissionLogger.profile(steps.REMOVE_IMAGE + step.data);
-        return;
       default:
         throw new Error('Unknown clean up type: ' + step.type);
     }
+  });
+
+  yield cleanUpSteps.filter((step) => step.type === 'REMOVE_IMAGE').map(step => function* () {
+    submissionLogger.profile(steps.REMOVE_IMAGE + step.data);
+    yield exec(`docker rmi -f ${step.data}`, EXEC_OPTS_10s);
+    submissionLogger.profile(steps.REMOVE_IMAGE + step.data);
   });
   submissionLogger.profile(steps.all);
 }
