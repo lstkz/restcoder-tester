@@ -594,11 +594,11 @@ function* testSubmission(data) {
         // step 4
     var containers = yield _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, namePrefix, imageName, testEnv);
 
-        // step 6
-    yield _linkContainersStep(data, cleanUpSteps, submissionLogger, containers);
-
     // step 5
     yield _disableInternetConnectionStep(data, cleanUpSteps, submissionLogger, containers);
+
+        // step 6
+    yield _linkContainersStep(data, cleanUpSteps, submissionLogger, containers);
 
         // step 7
     yield _startContainersStep(data, submissionLogger, containers);
