@@ -212,6 +212,11 @@ function* _initializeContainerStep(data, cleanUpSteps, submissionLogger, namePre
     // remove, because the container it's already removed
   cleanUpSteps.pop();
 
+  cleanUpSteps.push({
+    type: 'REMOVE_IMAGE',
+    data: imageName
+  });
+
   submissionLogger.profile(steps.ALL);
 
   return imageName;
@@ -534,7 +539,8 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
   var steps = {
     ALL: 'cleanUp',
     IPTABLES: 'cleanUp | iptables: ',
-    REMOVE_CONTAINER: 'cleanUp | remove container: '
+    REMOVE_CONTAINER: 'cleanUp | remove container: ',
+    REMOVE_IMAGE: 'cleanUp | remove image: '
   };
   submissionLogger.profile(steps.all);
   yield cleanUpSteps.map(step => function* () {
@@ -555,6 +561,11 @@ function* _cleanUp(cleanUpSteps, submissionLogger) {
         submissionLogger.profile(steps.REMOVE_CONTAINER + step.data);
         yield exec(`docker rm -f ${step.data}`, EXEC_OPTS_10s);
         submissionLogger.profile(steps.REMOVE_CONTAINER + step.data);
+        return;
+      case 'REMOVE_IMAGE':
+        submissionLogger.profile(steps.REMOVE_IMAGE + step.data);
+        yield exec(`docker rmi -f ${step.data}`, EXEC_OPTS_10s);
+        submissionLogger.profile(steps.REMOVE_IMAGE + step.data);
         return;
       default:
         throw new Error('Unknown clean up type: ' + step.type);
