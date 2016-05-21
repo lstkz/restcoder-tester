@@ -65,6 +65,8 @@ function _getInstallCommand(language) {
       return 'pip install -r requirements.txt';
     case 'java':
       return 'mvn install';
+    case 'dotnet':
+      return 'nuget restore -NonInteractive && xbuild';
   }
   throw new Error('Not supported language: ' + language);
 }
