@@ -77,8 +77,12 @@ process.on('message', function (msg) {
     });
   });
 
-  mocha.run(function () {
-    process.send({ type: 'END', result: testResult });
-    process.exit(0);
-  });
+  try {
+    mocha.run(function () {
+      process.send({ type: 'END', result: testResult });
+      process.exit(0);
+    });
+  } catch (e) {
+    process.send({ type: 'ERROR', data: e.stack || e.message });
+  }
 });

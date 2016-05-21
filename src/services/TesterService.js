@@ -528,6 +528,10 @@ function* _startUniTestsStep(data, submissionLogger, testEnv) {
             submissionLogger.info('TEST END | %j', msg, {});
             yield APIService.notifyProgress(data.notifyKey, { type: 'END', passed: msg.result.passed });
             resolve(msg.result);
+            break;
+          case 'ERROR':
+            reject(msg.data);
+            break;
         }
       }).catch(reject);
     });
