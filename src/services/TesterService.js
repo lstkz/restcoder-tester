@@ -540,6 +540,15 @@ function* _startUniTestsStep(data, submissionLogger, testEnv) {
     Path.join(__dirname, '../../test-cases/', data.testCase, 'test.js')
   ];
   child.send({ files: files, testEnv: testEnv });
+  let queue = Promise.resolve();
+  const notify = (msg) => {
+    queue = queue.then(() => {
+      return co(APIService.notifyProgress(data.notifyKey, msg))
+        .catch((e) => {
+          throw e;
+        });
+    });
+  };
 
   var testResult = yield new Promise(function (resolve, reject) {
     child.on('message', function (msg) {
@@ -547,15 +556,15 @@ function* _startUniTestsStep(data, submissionLogger, testEnv) {
         switch (msg.type) {
           case 'START':
             submissionLogger.info('TEST START | %j', msg, {});
-            yield APIService.notifyProgress(data.notifyKey, msg);
+            notify(msg);
             break;
           case 'TEST_RESULT':
             submissionLogger.info('TEST | %j', msg, {});
-            yield APIService.notifyProgress(data.notifyKey, msg);
+            notify(msg);
             break;
           case 'END':
             submissionLogger.info('TEST END | %j', msg, {});
-            yield APIService.notifyProgress(data.notifyKey, { type: 'END', passed: msg.result.passed });
+            notify({ type: 'END', passed: msg.result.passed });
             resolve(msg.result);
             break;
           case 'ERROR':
