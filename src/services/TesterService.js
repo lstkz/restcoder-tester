@@ -253,7 +253,12 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, t
 
     var hostPort = _getFreePort();
     var ports = `-p ${hostPort}:${service.port}`;
-    var proc = execCb(`docker run  ${ports} --name ${serviceName} ${service.dockerImage}`);
+    var proc;
+    if (service.doneText) {
+      proc = execCb(`docker run  ${ports} --name ${serviceName} ${service.dockerImage}`);
+    } else {
+      yield exec(`docker run -d ${ports} --name ${serviceName} ${service.dockerImage}`, EXEC_OPTS_10s);
+    }
     submissionLogger.profile(steps.START + serviceName);
     cleanUpSteps.push({
       type: 'REMOVE_CONTAINER',
