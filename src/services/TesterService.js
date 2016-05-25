@@ -293,7 +293,6 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, t
     testEnv[service.envName] = service.url.replace('{{ip}}', config.HOST_IP).replace('{{port}}', hostPort);
     service.url = service.url.replace('{{ip}}', ip).replace('{{port}}', service.port);
     service.ip = ip;
-    yield (cb) => setTimeout(cb, 1000);
   });
   submissionLogger.profile(steps.ALL);
 }
@@ -454,6 +453,7 @@ function* _startContainersStep(data, submissionLogger, containers) {
       _.each(container.envVariables, (value, key) => {
         command += `export ${key}=${value}; `;
       });
+      command += `export INSTANCE_NR=${container.instanceNr}; `;
       command += container.cmd;
       command = '/bin/bash -c ' + bash.escape(command);
 
