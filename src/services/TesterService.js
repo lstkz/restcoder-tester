@@ -280,7 +280,7 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, t
       }, 5000);
 
       proc.stdout.on('data', data => {
-        if (data.toString().trim() === service.doneText) {
+        if (data.toString().indexOf(service.doneText) !== -1) {
           complete();
         }
       });
