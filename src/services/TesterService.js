@@ -253,12 +253,41 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, t
 
     var hostPort = _getFreePort();
     var ports = `-p ${hostPort}:${service.port}`;
-
-    yield exec(`docker run -d ${ports} --name ${serviceName} ${service.dockerImage}`, EXEC_OPTS_10s);
+    var proc = execCb(`docker run  ${ports} --name ${serviceName} ${service.dockerImage}`);
     submissionLogger.profile(steps.START + serviceName);
     cleanUpSteps.push({
       type: 'REMOVE_CONTAINER',
       data: serviceName
+    });
+    yield new Promise((resolve, reject) => {
+      if (!service.doneText) {
+        resolve();
+        return;
+      }
+      var interval;
+      const complete = (err) => {
+        clearTimeout(interval);
+        if (!err) {
+          resolve();
+        } else {
+          reject(err);
+        }
+      };
+
+      interval = setTimeout(function () {
+        proc.kill();
+        complete(new Error(`Service "${service.id}" timeout.`));
+      }, 5000);
+
+      proc.stdout.on('data', data => {
+        if (data.toString().trim() === service.doneText) {
+          complete();
+        }
+      });
+
+      proc.on('error', e => {
+        complete(new OperationError(`Service "${service.id}" returned an error: ${e.message}`));
+      });
     });
     var ip = yield _getContainerIP(serviceName);
     testEnv[service.envName] = service.url.replace('{{ip}}', config.HOST_IP).replace('{{port}}', hostPort);
