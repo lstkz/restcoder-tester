@@ -440,7 +440,7 @@ function* _initServices(data, submissionLogger, testEnv) {
 
   const init = Path.join(__dirname, '../../test-cases/', data.testCase, 'init.js');
   if (fs.existsSync(init)) {
-    const result = yield exec(`node ${init}`, {
+    const result = yield exec(`${config.NODE_CMD} ${init}`, {
       timeout: ms('10s'),
       env: testEnv
     });

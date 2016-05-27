@@ -15,5 +15,6 @@ module.exports = {
   'AWS_SECRET_KEY': process.env.AWS_SECRET_KEY,
   'S3_BUCKET': 'restcoder-logs',
   'AWS_REGION': 'eu-central-1',
-  'DISABLE_IP_TABLES': true
+  'DISABLE_IP_TABLES': true,
+  'NODE_CMD': 'node'
 };
