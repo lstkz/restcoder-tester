@@ -16,5 +16,5 @@ module.exports = {
   'S3_BUCKET': 'restcoder-logs',
   'AWS_REGION': 'eu-central-1',
   'DISABLE_IP_TABLES': true,
-  'NODE_CMD': 'node'
+  'NODE_CMD': 'node',
 };
