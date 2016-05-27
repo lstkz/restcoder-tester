@@ -8,6 +8,7 @@ const ms = require('ms');
 const co = require('co');
 const config = require('config');
 const bash = require('bash');
+const fs = require('fs');
 const Path = require('path');
 const helper = require('../common/helper');
 const logger = require('../common/logger');
@@ -431,6 +432,29 @@ function* _linkContainersStep(data, cleanUpSteps, submissionLogger, containers) 
   submissionLogger.profile(steps.ALL);
 }
 
+function* _initServices(data, submissionLogger, testEnv) {
+  var steps = {
+    ALL: 'initServices',
+  };
+  submissionLogger.profile(steps.ALL);
+
+  const init = Path.join(__dirname, '../../test-cases/', data.testCase, 'init.js');
+  if (fs.existsSync(init)) {
+    const result = yield exec(`node ${init}`, {
+      timeout: ms('10s'),
+      env: testEnv
+    });
+    submissionLogger.info('init.js result');
+    if (result[0]) {
+      submissionLogger.info(result[0]);
+    }
+    if (result[0]) {
+      submissionLogger.info(result[1]);
+    }
+  }
+
+  submissionLogger.profile(steps.ALL);
+}
 
 /**
  * Step 7. Start user's containers and wait for READY
@@ -445,6 +469,7 @@ function* _startContainersStep(data, submissionLogger, containers) {
     READY: 'startContainers | ready: '
   };
   submissionLogger.profile(steps.ALL);
+
   yield APIService.notifyProgress(data.notifyKey, { type: 'READY' });
 
   yield containers.map(container => {
@@ -656,6 +681,9 @@ function* testSubmission(data) {
         // step 6
     yield _linkContainersStep(data, cleanUpSteps, submissionLogger, containers);
 
+    
+    yield _initServices(data, submissionLogger, testEnv);
+    
         // step 7
     yield _startContainersStep(data, submissionLogger, containers);
 
