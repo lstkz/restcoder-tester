@@ -148,6 +148,7 @@ function* _prepareStep(data, submissionLogger) {
       'sourceUrl': 'ShortString',
       'commands': 'AnyObject',
       'testCase': 'ShortString',
+      'apiBaseUrl': 'ShortString',
       'processes': 'AnyObject',
       'services': {
         type: ['AnyObject'],
@@ -156,7 +157,7 @@ function* _prepareStep(data, submissionLogger) {
     });
   submissionLogger.info('Validation pass');
 
-  yield APIService.notifyProgress(data.notifyKey, { type: 'PREPARING' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'PREPARING' });
 
   return `${data.submissionId}_${helper.randomString(5)}`.toLowerCase();
 }
@@ -202,15 +203,15 @@ function* _initializeContainerStep(data, cleanUpSteps, submissionLogger, namePre
 
     // Step 3 - Install dependencies
   var installCmd = _getInstallCommand(data.language);
-  yield APIService.notifyProgress(data.notifyKey, { type: 'INSTALL' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'INSTALL' });
   submissionLogger.profile(steps.INSTALL);
   var installResult = yield _execCommand(`docker exec ${containerName} /bin/bash -c "${installCmd}"`, 'Install Dependencies', ms('3m'));
   submissionLogger.profile(steps.INSTALL);
   submissionLogger.info('initializeContainer | install dependencies result %j', installResult, {});
 
     // Step 4 - Commit container (create new image with installed dependencies)
-  yield APIService.notifyProgress(data.notifyKey, { type: 'INSTALL_OK' });
-  yield APIService.notifyProgress(data.notifyKey, { type: 'INSTALL_LOG', msg: 'installLog' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'INSTALL_OK' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'INSTALL_LOG', msg: 'installLog' });
   var imageName = `app_${namePrefix}`;
   submissionLogger.profile(steps.CREATE_BASE_DOCKER_IMAGE);
   yield exec(`docker commit ${containerName} ${imageName}`, EXEC_OPTS_1m);
@@ -470,7 +471,7 @@ function* _startContainersStep(data, submissionLogger, containers) {
   };
   submissionLogger.profile(steps.ALL);
 
-  yield APIService.notifyProgress(data.notifyKey, { type: 'READY' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'READY' });
 
   yield containers.map(container => {
     return new Promise((resolve, reject) => {
@@ -545,7 +546,7 @@ function* _startContainersStep(data, submissionLogger, containers) {
     });
   });
 
-  yield APIService.notifyProgress(data.notifyKey, { type: 'READY_OK' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'READY_OK' });
 
   submissionLogger.profile(steps.ALL);
 }
@@ -564,7 +565,7 @@ function* _startUniTestsStep(data, submissionLogger, testEnv) {
   };
   submissionLogger.profile(steps.ALL);
 
-  yield APIService.notifyProgress(data.notifyKey, { type: 'BEFORE_START' });
+  yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, { type: 'BEFORE_START' });
 
   var child = fork(__dirname + '/../mocha-child.js');
   var files = [
@@ -574,7 +575,7 @@ function* _startUniTestsStep(data, submissionLogger, testEnv) {
   let queue = Promise.resolve();
   const notify = (msg) => {
     queue = queue.then(() => {
-      return co(APIService.notifyProgress(data.notifyKey, msg))
+      return co(APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, msg))
         .catch((e) => {
           throw e;
         });
@@ -700,7 +701,7 @@ function* testSubmission(data) {
     }
     if (error instanceof OperationError) {
       errorMessage = error.message;
-      yield APIService.notifyProgress(data.notifyKey, {
+      yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, {
         type: 'OPERATION_ERROR',
         msg: error.message,
         stdout: error.info && error.info.stdout,
@@ -709,7 +710,7 @@ function* testSubmission(data) {
       });
     } else {
       errorMessage = 'Internal Error';
-      yield APIService.notifyProgress(data.notifyKey, {
+      yield APIService.notifyProgress(data.apiBaseUrl, data.notifyKey, {
         type: 'ERROR',
         referId: data.submissionId
       });
@@ -732,5 +733,5 @@ function* testSubmission(data) {
     unitTestResult: unitTestResult || {}
   };
   logger.info('submissionResult', testResult);
-  yield APIService.submitTestResult(data.notifyKey, testResult);
+  yield APIService.submitTestResult(data.apiBaseUrl, data.notifyKey, testResult);
 }
