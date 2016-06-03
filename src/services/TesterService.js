@@ -498,7 +498,7 @@ function* _startContainersStep(data, submissionLogger, containers) {
 
       proc.stdout.on('data', data => {
         stdoutLogger.log(data);
-        if (data.toString().trim() === 'READY') {
+        if (data.toString().split('\n').map((item) => item.trim()).indexOf('READY') !== -1) {
           submissionLogger.profile(steps.READY + command);
           complete();
         }
