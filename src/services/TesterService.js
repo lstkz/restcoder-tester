@@ -72,6 +72,17 @@ function _getInstallCommand(language) {
   throw new Error('Not supported language: ' + language);
 }
 
+function _prepareCustomEnv(variables) {
+  const ret = {};
+  _.each(variables, (value, key) => {
+    if (value === '$random') {
+      ret[key] = helper.randomString(10);
+    } else {
+      ret[key] = value;
+    }
+  });
+  return ret;
+}
 
 function _execCommand(command, name, timeout) {
   var proc = execCb(command);
@@ -150,6 +161,7 @@ function* _prepareStep(data, submissionLogger) {
       'testCase': 'ShortString',
       'apiBaseUrl': 'ShortString',
       'processes': 'AnyObject',
+      'customEnv': 'AnyObject',
       'services': {
         type: ['AnyObject'],
         empty: true
@@ -328,6 +340,10 @@ function* _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, nameP
             // shouldn't happen, it's pre-validated in the submission API
       throw new Error(`Command ${procName} is missing in Procfile`);
     }
+    let customEnv = {};
+    if (data.customEnv[procName]) {
+      customEnv = _prepareCustomEnv(data.customEnv[procName]);
+    }
 
     return _.map(_.range(0, conf.instances), n => function* () {
       var name = `app-${namePrefix}-${procName}-${n}`;
@@ -348,6 +364,8 @@ function* _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, nameP
         testEnv['API_URL_' + n] = `http://${config.HOST_IP}:${hostPort}`;
       }
       envVariables.FOREMAN_WORKER_NAME = `${procName}.${n + 1}`;
+      _.extend(testEnv, customEnv);
+      _.extend(envVariables, customEnv);
       var ret = {
         procName,
         containerName: name,
