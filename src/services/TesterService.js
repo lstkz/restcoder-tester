@@ -347,8 +347,8 @@ function* _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, nameP
         envVariables.PORT = containerPort;
         testEnv['API_URL_' + n] = `http://${config.HOST_IP}:${hostPort}`;
       }
+      envVariables.FOREMAN_WORKER_NAME = `${procName}.${n + 1}`;
       var ret = {
-        instanceNr: n,
         procName,
         containerName: name,
         cmd,
@@ -484,7 +484,6 @@ function* _startContainersStep(data, submissionLogger, containers) {
       _.each(container.envVariables, (value, key) => {
         command += `export ${key}=${value}; `;
       });
-      command += `export INSTANCE_NR=${container.instanceNr}; `;
       command += container.cmd;
       command = '/bin/bash -c ' + bash.escape(command);
 
