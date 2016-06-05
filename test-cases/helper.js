@@ -15,6 +15,9 @@ Test.prototype.end = function (operation) {
   return new Promise(function (resolve, reject) {
     orgEnd.call(self, function (err, response) {
       if (err) {
+        if (operation === null) {
+          return reject(err);
+        }
         var error = new Error(`Connection refused in operation ${operation}`);
         error.userError = true;
         error.orgError = err;
