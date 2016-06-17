@@ -6,28 +6,104 @@ require("co-mocha");
 
 
 //fix supertest to support promises
+const Url = require('url');
 const _ = require('underscore');
 const assert = require('chai').assert;
 const Test = require('supertest/lib/test');
 var orgEnd = Test.prototype.end;
-Test.prototype.end = function (operation) {
+
+
+Test.prototype.assertStatus = function (status) {
+  if (!this._customAsserts) {
+    this._customAsserts = [];
+  }
+  this._customAsserts.push({type: 'assertStatus', status});
+  return this;
+};
+
+Test.prototype.assertJson = function () {
+  if (!this._customAsserts) {
+    this._customAsserts = [];
+  }
+  this._customAsserts.push({type: 'assertJson'});
+  return this;
+};
+
+Test.prototype.assertObject = function () {
+  if (!this._customAsserts) {
+    this._customAsserts = [];
+  }
+  this._customAsserts.push({type: 'assertObject'});
+  return this;
+};
+
+Test.prototype.assertArray = function () {
+  if (!this._customAsserts) {
+    this._customAsserts = [];
+  }
+  this._customAsserts.push({type: 'assertArray'});
+  return this;
+};
+
+function _trim(value) {
+  if (!value) {
+    return value;
+  }
+  const max = 30;
+  if (value.length > max) {
+    return value.substr(max) + '<truncated>';
+  }
+  return value;
+}
+
+Test.prototype.end = function () {
   var self = this;
+  const url = Url.parse(this.url);
+  const endpoint =`Endpoint: ${this.method.toUpperCase()} ${url.pathname} $END`;
   return new Promise(function (resolve, reject) {
-    orgEnd.call(self, function (err, response) {
+    orgEnd.call(self, function (err, res) {
       if (err) {
-        if (operation === null) {
-          return reject(err);
-        }
-        var error = new Error(`Connection refused in operation ${operation}`);
+        var error = new Error(`Connection refused to your API. Your application probably crashed. ${endpoint}`);
         error.userError = true;
         error.orgError = err;
         reject(error);
-      } else {
-        resolve(response);
+        return;
       }
+      if (self._customAsserts) {
+        for (const condition of self._customAsserts) {
+          switch (condition.type) {
+            case 'assertStatus':
+              assert.equal(res.status, condition.status,
+                `Expected ${condition.status} status. Your API returned ${Number(res.status)}. ${endpoint}`);
+              break;
+            case 'assertJson':
+              const contentType = res.header['content-type'] || '<not defined>';
+              assert.ok(/json/.test(contentType), 
+                `Expected JSON content (header 'content-type' must equal to 'application/json'). Got ${_trim(contentType)}. ${endpoint}`);
+              break;
+            case 'assertObject':
+              assert.ok(_.isObject(res.body),
+                `Expected response to be an object. Got type "${typeof res.body}". ${endpoint}`);
+              break;
+            case 'assertArray':
+              assert.ok(_.isArray(res.body),
+                `Expected response to be an array. Got type "${typeof res.body}". ${endpoint}`);
+              break;
+            default:
+              break;
+          }
+        }
+      }
+      resolve(res);
     });
   });
 };
+
+
+//assert.assertStatus = function (res, expectedStatus) {
+//  console.log(res);
+//  assert.equal(res.status, expectedStatus, `Expected ${expectedStatus} status. Your api returned ${Number(res.status)}.`);
+//};
 
 var customAssert = {};
 

@@ -5,44 +5,39 @@ const request = require('supertest');
 const fs = require('fs');
 const _ = require('underscore');
 const pg = require('pg');
-const Assert = helper.assert;
+const assert = require('chai').assert;
 
 var api;
-var testCount = 0;
 var client;
 var expected;
 
-//noinspection JSDuplicatedDeclaration
 module.exports = {
-    before: function* () {
-        api = request(helper.assertEnv("API_URL_0"));
-        client = new pg.Client(helper.assertEnv("POSTGRES_URL"));
-        yield client.connect.bind(client);
-        yield client.query.bind(client, fs.readFileSync(__dirname + "/data/init.sql", 'utf8'));
-        expected = require("./data/expected.json");
-    },
+  before: function*() {
+    api = request(helper.assertEnv("API_URL_0"));
+    client = new pg.Client(helper.assertEnv("POSTGRES_URL"));
+    yield client.connect.bind(client);
+    yield client.query.bind(client, fs.readFileSync(__dirname + "/data/init.sql", 'utf8'));
+    expected = require("./data/expected.json");
+  },
 
-    [`TEST ${++testCount}`]: function* () {
-        var operation = 0;
-        var assert = 0;
+  'TEST 1: GET /products': function*() {
+    let res = yield api
+      .get('/products')
+      .assertStatus(200)
+      .assertJson()
+      .assertArray()
+      .end();
 
-        let res = yield api
-            .get('/products')
-            .end(++operation);
+    assert.deepEqual(res.body, expected, `Invalid response. Make sure to sort items by ID.$END`);
+  },
 
-        Assert.equal(res.status, 200, operation, ++assert);
-        Assert.deepEqual(res.body, expected, operation, ++assert);
-    },
+  'TEST 2: GET /products - stress test': function*() {
+    yield _.range(1, 20).map(() => function*() {
+      let res = yield api
+        .get('/products')
+        .end();
 
-    [`TEST ${++testCount}`]: function* () {
-        yield _.range(1, 20).map((operation) => function* () {
-            var assert = 0;
-            let res = yield api
-                .get('/products')
-                .end(operation);
-
-            Assert.equal(res.status, 200, operation, ++assert);
-            Assert.deepEqual(res.body, expected, operation, ++assert);
-        });
-    }
+      assert.deepEqual(res.body, expected, `Invalid response.$END`);
+    });
+  }
 };

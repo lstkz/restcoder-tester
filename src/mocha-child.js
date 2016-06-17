@@ -42,17 +42,31 @@ process.on('message', function (msg) {
         name: test.title,
         result: 'FAIL'
       };
-      if (err.userError) {
-        result.userErrorMessage = err.message;
+      if (err.constructor.name === 'AssertionError' || err.userError) {
+        if (err.message.indexOf('$END') !== -1) {
+          result.userErrorMessage = err.message.split('$END')[0];
+        } else {
+          result.userErrorMessage = err.message;
+        }
+        result.userErrorMessage = result.userErrorMessage.trim();
         result.errorInfo = {
-          message: err.orgError.message,
-          stack: err.orgError.stack
+          serialized: JSON.stringify(err),
+          message: err.message,
+          stack: err.stack
         };
+        if (err.orgError) {
+          result.errorInfo = {
+            orgError: {
+              message: err.orgError.message,
+              stack: err.orgError.stack
+            }
+          }
+        }
       } else {
         var reg = /timeout of .*? exceeded./;
         var match = reg.exec(err.message);
         if (match) {
-          result.userErrorMessage = `Operation ${ctx.operation}: ${match[0]}`;
+          result.userErrorMessage = `Operation timeout`;
         } else {
           result.userErrorMessage = 'Internal server error';
         }

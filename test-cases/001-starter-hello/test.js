@@ -2,28 +2,32 @@
 
 const helper = require("../helper");
 const request = require('supertest');
-const assert = helper.assert;
+const assert = require('chai').assert;
 
 var api;
 
-var testCount = 0;
 
 module.exports = {
-    before: function () {
-        api = request(helper.assertEnv("API_URL_0"));
-    },
+  before: function () {
+    api = request(helper.assertEnv("API_URL_0"));
+  },
 
-    [`TEST ${++testCount}`]: function* () {
-        this.timeout(1000);
-        this.action = "GET /hello";
-        this.operation = 0;
-        this.assert = 0;
+  'TEST 1: GET /hello': function*() {
+    let res = yield api
+      .get('/hello')
+      .assertStatus(200)
+      .end();
+    assert.equal(res.text, 'world', `Invalid response. Expected "world", but got "${res.text}".$END`);
+  },
 
-        let res = yield api
-            .get('/hello')
-            .end(++this.operation);
-        
-        assert.equal(res.status, 200, this.operation, ++this.assert);
-        assert.equal(res.text, "world", this.operation, ++this.assert);
-    }
+  'TEST 2: GET /hello-json': function*() {
+    let res = yield api
+      .get('/hello-json')
+      .assertStatus(200)
+      .assertJson()
+      .assertObject()
+      .end();
+    const expected = {hello: 'world'};
+    assert.deepEqual(res.body, expected,`Invalid response. Expected "${JSON.stringify(expected)}", but got "${JSON.stringify(res.body)}".$END`);
+  }
 };
