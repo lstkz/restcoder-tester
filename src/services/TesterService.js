@@ -346,10 +346,14 @@ function* _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, nameP
     }
 
     return _.map(_.range(0, conf.instances), n => function* () {
-      var name = `app-${namePrefix}-${procName}-${n}`;
-      var hostPort = _getFreePort();
-      var containerPort = config.APP_DEFAULTS.HTTP_PORT;
-      var ports = `-p ${hostPort}:${containerPort}`;
+      const name = `app-${namePrefix}-${procName}-${n}`;
+      const containerPort = config.APP_DEFAULTS.HTTP_PORT;
+      let hostPort;
+      let ports = '';
+      if (config.REDIRECT_PORTS) {
+        hostPort = _getFreePort();
+        ports = `-p ${hostPort}:${containerPort}`;
+      }
       submissionLogger.profile(steps.START + name);
       yield exec(`docker run ${LIMIT_RUN_OPTS} -d ${ports} --name ${name} ${imageName} ${IDLE_CMD}`, EXEC_OPTS_10s);
       submissionLogger.profile(steps.START + name);
@@ -361,7 +365,11 @@ function* _prepareUserContainersStep(data, cleanUpSteps, submissionLogger, nameP
       var envVariables = {};
       if (procName === 'web') {
         envVariables.PORT = containerPort;
-        testEnv['API_URL_' + n] = `http://${config.HOST_IP}:${hostPort}`;
+        if (config.REDIRECT_PORTS) {
+          testEnv['API_URL_' + n] = `http://${config.HOST_IP}:${hostPort}`;
+        } else {
+          testEnv['API_URL_' + n] = `http://${ip}:${containerPort}`;
+        }
       }
       envVariables.FOREMAN_WORKER_NAME = `${procName}.${n + 1}`;
       _.extend(testEnv, customEnv);
