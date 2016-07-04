@@ -85,7 +85,7 @@ function _prepareCustomEnv(variables) {
 }
 
 function _execCommand(command, name, timeout) {
-  var proc = execCb(command);
+  var proc = execCb(command, {maxBuffer: MAX_SIZE});
   return new Promise((resolve, reject) => {
     var isHandled = false;
     var stdoutLogger = LoggerService.createLogger(MAX_SIZE);
