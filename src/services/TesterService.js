@@ -264,9 +264,12 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, t
   yield data.services.map(service => function* () {
     var serviceName = `service-${namePrefix}-${helper.randomString(5)}`.toLowerCase();
     submissionLogger.profile(steps.START + serviceName);
-
-    var hostPort = _getFreePort();
-    var ports = `-p ${hostPort}:${service.port}`;
+    let hostPort;
+    let ports = '';
+    if (config.REDIRECT_PORTS) {
+      hostPort = _getFreePort();
+      ports = `-p ${hostPort}:${service.port}`;
+    }
     var proc;
     if (service.doneText) {
       proc = execCb(`docker run  ${ports} --name ${serviceName} ${service.dockerImage}`);
@@ -308,10 +311,15 @@ function* _startServicesStep(data, cleanUpSteps, submissionLogger, namePrefix, t
         complete(new OperationError(`Service "${service.id}" returned an error: ${e.message}`));
       });
     });
-    var ip = yield _getContainerIP(serviceName);
-    testEnv[service.envName] = service.url.replace('{{ip}}', config.HOST_IP).replace('{{port}}', hostPort);
-    service.url = service.url.replace('{{ip}}', ip).replace('{{port}}', service.port);
+    const ip = yield _getContainerIP(serviceName);
+    const privateServiceUrl = service.url.replace('{{ip}}', ip).replace('{{port}}', service.port);
     service.ip = ip;
+    if (config.REDIRECT_PORTS) {
+      testEnv[service.envName] = service.url.replace('{{ip}}', config.HOST_IP).replace('{{port}}', hostPort);
+    } else {
+      testEnv[service.envName] = privateServiceUrl;
+    }
+    service.url = privateServiceUrl;
   });
   submissionLogger.profile(steps.ALL);
 }
