@@ -5,11 +5,10 @@ const request = require('supertest');
 const fs = require('fs');
 const _ = require('underscore');
 const pg = require('pg');
-const Assert = helper.assert;
+const assert = require('chai').assert;
 
 var api1;
 var api2;
-var testCount = 0;
 var client;
 var expected;
 
@@ -22,44 +21,46 @@ module.exports = {
     expected = require("./data/expected.json");
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    yield client.query.bind(client, fs.readFileSync(__dirname + "/data/init.sql", 'utf8'));
+  'TEST 1: Inserting test data': function*() {
+    try {
+      yield client.query.bind(client, fs.readFileSync(__dirname + "/data/init.sql", 'utf8'));
+    } catch (e) {
+      var err = new Error("Couldn't insert test data. Did you create a 'product' table?");
+      err.userError = true;
+      throw err;
+    }
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
+  'TEST 2: GET /products - first instance': function*() {
     let res = yield api1
       .get('/products')
-      .end(++operation);
+      .assertStatus(200)
+      .assertJson()
+      .assertArray()
+      .end();
 
-    Assert.equal(res.status, 200, operation, ++assert);
-    Assert.deepEqual(res.body, expected, operation, ++assert);
+    assert.deepEqual(res.body, expected, `Invalid response.$END`);
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
+  'TEST 3: GET /products - second instance': function*() {
     let res = yield api2
       .get('/products')
-      .end(++operation);
+      .assertStatus(200)
+      .assertJson()
+      .assertArray()
+      .end();
 
-    Assert.equal(res.status, 200, operation, ++assert);
-    Assert.deepEqual(res.body, expected, operation, ++assert);
+    assert.deepEqual(res.body, expected, `Invalid response.$END`);
   },
 
-  [`TEST ${++testCount}`]: function*() {
+  'TEST 4: GET /products - stress test': function*() {
     yield _.range(1, 20).map((operation) => function*() {
-      var assert = 0;
       const api = operation % 2 ? api1 : api2;
       let res = yield api
         .get('/products')
-        .end(operation);
+        .end();
 
-      Assert.equal(res.status, 200, operation, ++assert);
-      Assert.deepEqual(res.body, expected, operation, ++assert);
+      assert.deepEqual(res.body, expected, `Invalid response.$END`);
     });
   }
 };
