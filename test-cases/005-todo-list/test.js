@@ -3,11 +3,10 @@
 const helper = require("../helper");
 const request = require('supertest');
 const _ = require('underscore');
-const Assert = helper.assert;
+const assert = require('chai').assert;
 
 var api1;
 var api2;
-var testCount = 0;
 
 module.exports = {
   before: function() {
@@ -15,154 +14,129 @@ module.exports = {
     api2 = request(helper.assertEnv("API_URL_1"));
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
+  'TEST 1: POST /todos': function*() {
     let res = yield api1
       .post('/todos')
       .send({
         name: 'item 1'
       })
-      .end(++operation);
+      .assertStatus(201)
+      .assertJson()
+      .end();
     const expected = {id: 1, name: 'item 1', done: false};
-    Assert.equal(res.status, 201, operation, ++assert);
-    Assert.deepEqual(res.body, expected, operation, ++assert);
+    assert.deepEqual(res.body, expected, `Invalid response. Expected "${JSON.stringify(expected)}", but got "${JSON.stringify(res.body)}".$END`);
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
+  'TEST 2: POST /todos': function*() {
     let res = yield api2
       .post('/todos')
       .send({
         name: 'item 2'
       })
-      .end(++operation);
+      .assertStatus(201)
+      .assertJson()
+      .end();
     const expected = {id: 2, name: 'item 2', done: false};
-    Assert.equal(res.status, 201, operation, ++assert);
-    Assert.deepEqual(res.body, expected, operation, ++assert);
+    assert.deepEqual(res.body, expected, `Invalid response. Expected "${JSON.stringify(expected)}", but got "${JSON.stringify(res.body)}".$END`);
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
-    let res = yield api2
+  'TEST 3: POST /todos/:id/done': function*() {
+    yield api2
       .post('/todos/2/done')
-      .end(++operation);
-    Assert.equal(res.status, 204, operation, ++assert);
+      .assertStatus(204)
+      .end();
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
-    let res = yield api1
+  'TEST 4: POST /todos/:id/done': function*() {
+    yield api1
       .post('/todos/2/done')
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
+      .assertStatus(400)
+      .end();
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
+  'TEST 5: GET /todos': function*() {
     let res = yield api1
       .get('/todos')
-      .end(++operation);
+      .assertArray()
+      .end();
     const expected = [{id: 1, name: 'item 1', done: false}, {id: 2, name: 'item 2', done: true}];
-    Assert.equal(res.status, 200, operation, ++assert);
-    Assert.deepEqual(res.body, expected, operation, ++assert);
+    assert.deepEqual(res.body, expected, 'Invalid response.$END');
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
-    let res = yield api1
+  'TEST 6: POST /todos - validation': function*() {
+     yield api1
       .post('/todos')
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
-    res = yield api1
+      .assertStatus(400)
+      .end();
+    yield api1
       .post('/todos')
       .send({
         name: null
       })
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
-    res = yield api1
+      .assertStatus(400)
+      .end();
+    yield api1
       .post('/todos')
       .send({
         name: {}
       })
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
-    res = yield api1
+      .assertStatus(400)
+      .end();
+    yield api1
       .post('/todos')
       .send({
         name: []
       })
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
-    res = yield api1
+      .assertStatus(400)
+      .end();
+    yield api1
       .post('/todos')
       .send({
         name: 1234
       })
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
+      .assertStatus(400)
+      .end();
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
-    let res = yield api1
+  'TEST 7: POST /todos/:id/done - validation': function*() {
+    yield api1
       .post('/todos/1.1/done')
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
-    res = yield api1
+      .assertStatus(400)
+      .end();
+     yield api1
       .post('/todos/-1/done')
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
-    res = yield api1
+      .assertStatus(400)
+      .end();
+    yield api1
       .post('/todos/asd/done')
-      .end(++operation);
-    Assert.equal(res.status, 400, operation, ++assert);
+      .assertStatus(400)
+      .end();
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
-
-    let res = yield api1
+  'TEST 8: POST /todos/:id/done - not found': function*() {
+    yield api1
       .post('/todos/3847573/done')
-      .end(++operation);
-    Assert.equal(res.status, 404, operation, ++assert);
+      .assertStatus(404)
+      .end();
   },
 
-  [`TEST ${++testCount}`]: function*() {
-    var operation = 0;
-    var assert = 0;
+  'TEST 9: stress test': function*() {
     yield _.range(1, 60).map((nr) => {
       const api = nr % 2 ? api1 : api2;
       return api.post('/todos')
         .send({
           name: 'stress ' + nr
         })
-        .end(++operation);
+        .end();
     });
 
     let res = yield api1
       .get('/todos')
-      .end(++operation);
-    Assert.equal(res.status, 200, operation, ++assert);
+      .assertStatus(200)
+      .end();
     let id = 1;
-    operation++;
     res.body.forEach((item) => {
-      Assert.equal(item.id, id++, operation, ++assert);
+      assert.equal(item.id, id++, 'Invalid id.$END');
     });
   }
 
